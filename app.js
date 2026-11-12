@@ -147,6 +147,31 @@ function markup(html, className = "", tag = "div") {
   return result;
 }
 
+function typesetVectors(root) {
+  if (!root.textContent.includes("\u20d7")) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) {
+    if (walker.currentNode.data.includes("\u20d7")) nodes.push(walker.currentNode);
+  }
+  for (const node of nodes) {
+    const parts = document.createDocumentFragment();
+    let cursor = 0;
+    // An arrow belongs to both letters of AB or A₁B₁, or to a single symbol.
+    for (const match of node.data.matchAll(/((?:[A-ZА-ЯЁ][₀-₉]*){2}|[\p{L}\p{N}][₀-₉]*)\u20d7/gu)) {
+      parts.append(node.data.slice(cursor, match.index));
+      const vector = element("span", "vector", match[1]);
+      vector.append(element("span", "vector-source", "\u20d7"));
+      parts.append(vector);
+      cursor = match.index + match[0].length;
+    }
+    if (cursor) {
+      parts.append(node.data.slice(cursor));
+      node.replaceWith(parts);
+    }
+  }
+}
+
 function codeBlock(text) {
   const pre = element("pre", "code-block");
   const code = element("code");
@@ -165,14 +190,63 @@ function codeBlock(text) {
   return pre;
 }
 
+function figureImage(block) {
+  const image = element("img");
+  image.alt = block.alt;
+  image.width = block.width;
+  image.height = block.height;
+  image.decoding = "async";
+  image.src = block.src;
+  return image;
+}
+
+function openFigure(block, trigger) {
+  const dialog = element("dialog", "figure-viewer");
+  dialog.setAttribute("aria-label", block.caption);
+  const toolbar = element("div", "figure-toolbar");
+  const image = figureImage(block);
+  const viewport = element("div", "figure-viewport");
+  const zoom = button("Увеличить", "secondary", () => {
+    const enlarged = viewport.classList.toggle("enlarged");
+    zoom.textContent = enlarged ? "Уместить на экране" : "Увеличить";
+    zoom.setAttribute("aria-pressed", String(enlarged));
+  });
+  zoom.setAttribute("aria-pressed", "false");
+  const close = button("×", "icon-button", () => dialog.close());
+  close.setAttribute("aria-label", "Закрыть рисунок");
+  toolbar.append(zoom, close);
+  viewport.append(image);
+  dialog.append(toolbar, viewport);
+  dialog.addEventListener("close", () => {
+    dialog.remove();
+    trigger.focus({ preventScroll: true });
+  }, { once: true });
+  app.append(dialog);
+  dialog.showModal();
+  close.focus();
+}
+
+function theoryFigure(block) {
+  const figure = element("figure", "theory-figure");
+  const preview = button("", "figure-preview", () => openFigure(block, preview));
+  preview.setAttribute("aria-label", `Открыть крупнее: ${block.caption}`);
+  const image = figureImage(block);
+  image.loading = "lazy";
+  preview.append(image);
+  figure.append(preview, element("figcaption", "", block.caption));
+  return figure;
+}
+
 function theoryArticle(topic) {
   const article = element("article", "theory");
   for (const block of topic.blocks) {
     if (block.kind === "heading") article.append(element("h2", "", block.text));
+    else if (block.kind === "figure") article.append(theoryFigure(block));
     else if (block.kind === "code") article.append(codeBlock(block.text));
     else if (block.text !== undefined) article.append(element("pre", "", block.text));
     else article.append(markup(block.html, block.kind === "paragraph" ? "" : `callout ${block.kind}`, "p"));
   }
+  typesetVectors(article);
   return article;
 }
 
@@ -363,7 +437,9 @@ function renderCard() {
   const front = element("div", "flip-face");
   const back = element("div", "flip-face flip-back");
   const face = (parent, title, value) => {
-    parent.append(element("h2", "", title), item.custom ? element("div", "formatted", value) : markup(value, "formatted"));
+    const content = item.custom ? element("div", "formatted", value) : markup(value, "formatted");
+    typesetVectors(content);
+    parent.append(element("h2", "", title), content);
   };
   face(front, "Вопрос", item.question);
   face(back, "Ответ", item.answer);
