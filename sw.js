@@ -2,7 +2,7 @@
 
 const scope = self.registration.scope;
 const prefix = `sessia:${scope}:`;
-const cacheName = `${prefix}2`;
+const cacheName = `${prefix}3`;
 const paths = [
   "./", "./index.html", "./style.css", "./app.js", "./data.json",
   "./manifest.json", "./icon-180.png", "./icon-192.png", "./icon-512.png",

@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 from bot_html import parse_html, split_html
+from editorial import clean_blocks, clean_text
 from figures import add_figures
 from materials import SUBJECTS, combined, lin_alg, matan, programming, read
 
@@ -67,8 +68,9 @@ def export(topics) -> dict:
             raise ValueError(f"Повторяющаяся тема или пустая теория: {topic.title}")
         if topic.subject == 2:
             add_figures(topic.title, blocks)
+        blocks = clean_blocks(blocks)
         seen_topics.add(topic_id)
-        cards = [{"question": safe_html(question), "answer": safe_html(answer)}
+        cards = [{"question": clean_text(safe_html(question)), "answer": clean_text(safe_html(answer))}
                  for question, answer in dict.fromkeys(topic.cards)]
         subject["topics"].append({
             "id": topic_id, "section": section, "title": topic.title, "blocks": blocks, "cards": cards,
